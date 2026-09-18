@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: app1-db
+  name: mysql
   namespace: app-1
 
 spec:
@@ -18,7 +18,7 @@ spec:
 
     spec:
       containers:
-        - name: mariadb
+        - name: mysql
           image: docker.io/payalkharat/kubernetes-ingress:app-1-db-v2
 
           ports:
