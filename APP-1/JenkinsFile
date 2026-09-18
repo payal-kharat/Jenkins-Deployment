@@ -57,21 +57,21 @@ pipeline {
                         FRONTEND_IMAGE,
                         IMAGE_TAG,
                         'proxy/Dockerfile',
-                        'frontend'
+                        'APP-1/frontend/'
                     )
 
                     dockerBuildPush(
                         BACKEND_IMAGE,
                         IMAGE_TAG,
                         'backend/Dockerfile',
-                        'backend'
+                        'APP-1/backend/'
                     )
 
                     dockerBuildPush(
                         DB_IMAGE,
                         IMAGE_TAG,
                         'db/Dockerfile',
-                        'db'
+                        'APP-1/db/'
                     )
                 }
             }
