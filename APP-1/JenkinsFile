@@ -57,7 +57,7 @@ pipeline {
                         FRONTEND_IMAGE,
                         IMAGE_TAG,
                         'proxy/Dockerfile',
-                        'APP-1/frontend/'
+                        'APP-1/proxy/'
                     )
 
                     dockerBuildPush(
