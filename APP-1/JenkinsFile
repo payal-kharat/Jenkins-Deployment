@@ -1,0 +1,229 @@
+@Library('cloudethix-shared-library') _
+
+pipeline {
+
+    agent any
+
+    environment {
+        FRONTEND_IMAGE = "docker.io/payalkharat/jenkins-demo"
+        BACKEND_IMAGE  = "docker.io/payalkharat/jenkins-demo"
+        DB_IMAGE       = "docker.io/payalkharat/jenkins-demo"
+
+      
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        EKS_CLUSTER = "my-eks-cluster"
+        AWS_REGION  = "us-east-1"
+    }
+
+
+    stages {
+        stage('Checkout') {
+
+            steps {
+
+                checkout scm
+            }
+        }
+
+        stage('Docker Login') {
+
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
+
+        stage('DEV - Build Images') {
+
+            steps {
+
+                script {
+
+                    echo "DEV ENVIRONMENT"
+                  
+                    dockerBuildPush(
+                        FRONTEND_IMAGE,
+                        IMAGE_TAG,
+                        'frontend/Dockerfile',
+                        'frontend'
+                  )
+                    dockerBuildAndPush(
+                        BACKEND_IMAGE,
+                        IMAGE_TAG,
+                        'backend/Dockerfile',
+                        'backend'
+                    )
+
+                    dockerBuildAndPush(
+                        DB_IMAGE,
+                        IMAGE_TAG,
+                        'db/Dockerfile',
+                        'db'
+                    )
+                }
+            }
+        }
+
+        stage('DEV - Deploy') {
+
+            steps {
+
+                script {
+
+                    deployToEKS(
+                        'dev',
+                        'frontend',
+                        'frontend',
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'dev',
+                        'backend',
+                        'backend',
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'dev',
+                        'mysql',
+                        'mysql',
+                        "${DB_IMAGE}:${IMAGE_TAG}"
+                    )
+                }
+            }
+        }
+        stage('QA - Deploy') {
+
+            steps {
+
+                script {
+                
+                    echo "QA DEPLOYMENT"
+             
+                    deployToEKS(
+                        'qa',
+                        'frontend',
+                        'frontend',
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'qa',
+                        'backend',
+                        'backend',
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'qa',
+                        'mysql',
+                        'mysql',
+                        "${DB_IMAGE}:${IMAGE_TAG}"
+                    )
+                }
+            }
+        }
+
+        stage('UAT - Deploy') {
+
+            steps {
+
+                script {
+
+                   
+                    echo "UAT DEPLOYMENT"
+                   
+                    deployToEKS(
+                        'uat',
+                        'frontend',
+                        'frontend',
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'uat',
+                        'backend',
+                        'backend',
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'uat',
+                        'mysql',
+                        'mysql',
+                        "${DB_IMAGE}:${IMAGE_TAG}"
+                    )
+                }
+            }
+        }
+
+
+        
+        stage('Production Approval') {
+
+            steps {
+
+                input(
+                    message: "Deploy build ${BUILD_NUMBER} to Production?",
+                    ok: "Deploy to Production"
+                )
+            }
+        }
+        stage('PROD - Deploy') {
+
+            steps {
+
+                script {
+
+                    echo "PRODUCTION DEPLOYMENT"
+                  
+                    deployToEKS(
+                        'prod',
+                        'frontend',
+                        'frontend',
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'prod',
+                        'backend',
+                        'backend',
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                    )
+
+                    deployToEKS(
+                        'prod',
+                        'mysql',
+                        'mysql',
+                        "${DB_IMAGE}:${IMAGE_TAG}"
+                    )
+                }
+            }
+        }
+    }
+
+    post {
+
+        always {
+
+            echo "Cleaning Jenkins workspace..."
+
+            cleanWs()
+        }
+    }
+}
