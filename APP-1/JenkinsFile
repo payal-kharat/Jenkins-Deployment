@@ -12,7 +12,7 @@ pipeline {
 
         IMAGE_TAG = "${BUILD_NUMBER}"
 
-        EKS_CLUSTER = "my-eks-cluster"
+        EKS_CLUSTER = "cluster-1"
         AWS_REGION  = "us-east-1"
     }
 
