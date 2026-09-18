@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: docker.io/payalkharat/kubernetes-ingress:app-1-frontend-v1
+          image: python:latest
           imagePullPolicy: Always
 
           ports:
