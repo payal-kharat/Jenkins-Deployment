@@ -5,19 +5,19 @@ pipeline {
     agent any
 
     environment {
-        FRONTEND_IMAGE = "docker.io/payalkharat/jenkins-demo"
-        BACKEND_IMAGE  = "docker.io/payalkharat/jenkins-demo"
-        DB_IMAGE       = "docker.io/payalkharat/jenkins-demo"
 
-      
+        FRONTEND_IMAGE = "docker.io/payalkharat/jenkins-demo-frontend"
+        BACKEND_IMAGE  = "docker.io/payalkharat/jenkins-demo-backend"
+        DB_IMAGE       = "docker.io/payalkharat/jenkins-demo-db"
+
         IMAGE_TAG = "${BUILD_NUMBER}"
 
         EKS_CLUSTER = "my-eks-cluster"
         AWS_REGION  = "us-east-1"
     }
 
-
     stages {
+
         stage('Checkout') {
 
             steps {
@@ -53,22 +53,21 @@ pipeline {
 
                 script {
 
-                    echo "DEV ENVIRONMENT"
-                  
                     dockerBuildPush(
                         FRONTEND_IMAGE,
                         IMAGE_TAG,
-                        'frontend/Dockerfile',
+                        'proxy/Dockerfile',
                         'frontend'
-                  )
-                    dockerBuildAndPush(
+                    )
+
+                    dockerBuildPush(
                         BACKEND_IMAGE,
                         IMAGE_TAG,
                         'backend/Dockerfile',
                         'backend'
                     )
 
-                    dockerBuildAndPush(
+                    dockerBuildPush(
                         DB_IMAGE,
                         IMAGE_TAG,
                         'db/Dockerfile',
@@ -88,52 +87,56 @@ pipeline {
                         'dev',
                         'frontend',
                         'frontend',
-                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'dev',
                         'backend',
                         'backend',
-                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'dev',
                         'mysql',
                         'mysql',
-                        "${DB_IMAGE}:${IMAGE_TAG}"
+                        "${DB_IMAGE}:${IMAGE_TAG}",
+                        'kube/db-deployment.yaml'
                     )
                 }
             }
         }
+
         stage('QA - Deploy') {
 
             steps {
 
                 script {
-                
-                    echo "QA DEPLOYMENT"
-             
                     deployToEKS(
                         'qa',
                         'frontend',
                         'frontend',
-                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'qa',
                         'backend',
                         'backend',
-                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'qa',
                         'mysql',
                         'mysql',
-                        "${DB_IMAGE}:${IMAGE_TAG}"
+                        "${DB_IMAGE}:${IMAGE_TAG}",
+                        'kube/db-deployment.yaml'
                     )
                 }
             }
@@ -144,36 +147,33 @@ pipeline {
             steps {
 
                 script {
-
-                   
-                    echo "UAT DEPLOYMENT"
-                   
                     deployToEKS(
                         'uat',
                         'frontend',
                         'frontend',
-                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'uat',
                         'backend',
                         'backend',
-                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'uat',
                         'mysql',
                         'mysql',
-                        "${DB_IMAGE}:${IMAGE_TAG}"
+                        "${DB_IMAGE}:${IMAGE_TAG}",
+                        'kube/db-deployment.yaml'
                     )
                 }
             }
         }
 
-
-        
         stage('Production Approval') {
 
             steps {
@@ -184,33 +184,35 @@ pipeline {
                 )
             }
         }
+
         stage('PROD - Deploy') {
 
             steps {
 
                 script {
 
-                    echo "PRODUCTION DEPLOYMENT"
-                  
                     deployToEKS(
                         'prod',
                         'frontend',
                         'frontend',
-                        "${FRONTEND_IMAGE}:${IMAGE_TAG}"
+                        "${FRONTEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'prod',
                         'backend',
                         'backend',
-                        "${BACKEND_IMAGE}:${IMAGE_TAG}"
+                        "${BACKEND_IMAGE}:${IMAGE_TAG}",
+                        'kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
                         'prod',
                         'mysql',
                         'mysql',
-                        "${DB_IMAGE}:${IMAGE_TAG}"
+                        "${DB_IMAGE}:${IMAGE_TAG}",
+                        'kube/db-deployment.yaml'
                     )
                 }
             }
