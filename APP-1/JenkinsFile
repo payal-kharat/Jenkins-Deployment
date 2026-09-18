@@ -1,4 +1,4 @@
-@Library('cloudethix-shared-library') _
+@Library('Jenkins-Shared-Library') _
 
 pipeline {
 
