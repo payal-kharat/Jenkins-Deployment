@@ -88,7 +88,7 @@ pipeline {
                         'frontend',
                         'frontend',
                         "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/frontend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -96,7 +96,7 @@ pipeline {
                         'backend',
                         'backend',
                         "${BACKEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/backend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -104,7 +104,7 @@ pipeline {
                         'mysql',
                         'mysql',
                         "${DB_IMAGE}:${IMAGE_TAG}",
-                        'kube/db-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/db-deployment.yaml'
                     )
                 }
             }
@@ -120,7 +120,7 @@ pipeline {
                         'frontend',
                         'frontend',
                         "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/frontend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -128,7 +128,7 @@ pipeline {
                         'backend',
                         'backend',
                         "${BACKEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/backend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -136,7 +136,7 @@ pipeline {
                         'mysql',
                         'mysql',
                         "${DB_IMAGE}:${IMAGE_TAG}",
-                        'kube/db-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/db-deployment.yaml'
                     )
                 }
             }
@@ -152,7 +152,7 @@ pipeline {
                         'frontend',
                         'frontend',
                         "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/frontend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -160,7 +160,7 @@ pipeline {
                         'backend',
                         'backend',
                         "${BACKEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/backend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -168,7 +168,7 @@ pipeline {
                         'mysql',
                         'mysql',
                         "${DB_IMAGE}:${IMAGE_TAG}",
-                        'kube/db-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/db-deployment.yaml'
                     )
                 }
             }
@@ -196,7 +196,7 @@ pipeline {
                         'frontend',
                         'frontend',
                         "${FRONTEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/frontend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/frontend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -204,7 +204,7 @@ pipeline {
                         'backend',
                         'backend',
                         "${BACKEND_IMAGE}:${IMAGE_TAG}",
-                        'kube/backend-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/backend-deployment.yaml'
                     )
 
                     deployToEKS(
@@ -212,7 +212,7 @@ pipeline {
                         'mysql',
                         'mysql',
                         "${DB_IMAGE}:${IMAGE_TAG}",
-                        'kube/db-deployment.yaml'
+                        'APP-1/nginx-flask-mysql/kube/db-deployment.yaml'
                     )
                 }
             }
