@@ -1,4 +1,4 @@
-
+```groovy
 pipeline {
 
     agent any
@@ -34,6 +34,12 @@ pipeline {
 
     stages {
 
+        /*
+        ======================================================
+        CHECKOUT
+        ======================================================
+        */
+
         stage('Checkout') {
 
             steps {
@@ -53,6 +59,12 @@ pipeline {
         }
 
 
+        /*
+        ======================================================
+        CONNECT TO EKS
+        ======================================================
+        */
+
         stage('Connect to EKS') {
 
             steps {
@@ -67,6 +79,39 @@ pipeline {
             }
         }
 
+
+        /*
+        ======================================================
+        CREATE NAMESPACES
+        ======================================================
+        */
+
+        stage('Create Kubernetes Namespaces') {
+
+            steps {
+
+                sh """
+                    kubectl get namespace ${DEV_NAMESPACE} \
+                    || kubectl create namespace ${DEV_NAMESPACE}
+
+                    kubectl get namespace ${QA_NAMESPACE} \
+                    || kubectl create namespace ${QA_NAMESPACE}
+
+                    kubectl get namespace ${STAGE_NAMESPACE} \
+                    || kubectl create namespace ${STAGE_NAMESPACE}
+
+                    kubectl get namespace ${PROD_NAMESPACE} \
+                    || kubectl create namespace ${PROD_NAMESPACE}
+                """
+            }
+        }
+
+
+        /*
+        ======================================================
+        DOCKER LOGIN
+        ======================================================
+        */
 
         stage('Docker Login') {
 
@@ -89,6 +134,12 @@ pipeline {
             }
         }
 
+
+        /*
+        ======================================================
+        BUILD DB IMAGE
+        ======================================================
+        */
 
         stage('Build DB Image') {
 
@@ -115,6 +166,12 @@ pipeline {
         }
 
 
+        /*
+        ======================================================
+        DEPLOY DB - DEV
+        ======================================================
+        */
+
         stage('Deploy DB - DEV') {
 
             steps {
@@ -127,16 +184,21 @@ pipeline {
 
                         "APP-1/kube/db-secret.yaml",
                         "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-storageclass.yaml",
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
-                        "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml",
-                        "APP-1/kube/db-storageclass.yaml"
+                        "APP-1/kube/db-service.yaml"
                     )
                 }
             }
         }
 
+
+        /*
+        ======================================================
+        PROMOTE DEV → QA
+        ======================================================
+        */
 
         stage('Promote DB DEV → QA') {
 
@@ -155,6 +217,12 @@ pipeline {
         }
 
 
+        /*
+        ======================================================
+        DEPLOY DB - QA
+        ======================================================
+        */
+
         stage('Deploy DB - QA') {
 
             steps {
@@ -167,16 +235,21 @@ pipeline {
 
                         "APP-1/kube/db-secret.yaml",
                         "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-storageclass.yaml",
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
-                        "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml",
-                        "APP-1/kube/db-storageclass.yaml"
+                        "APP-1/kube/db-service.yaml"
                     )
                 }
             }
         }
 
+
+        /*
+        ======================================================
+        PROMOTE QA → STAGE
+        ======================================================
+        */
 
         stage('Promote DB QA → STAGE') {
 
@@ -195,6 +268,12 @@ pipeline {
         }
 
 
+        /*
+        ======================================================
+        DEPLOY DB - STAGE
+        ======================================================
+        */
+
         stage('Deploy DB - STAGE') {
 
             steps {
@@ -207,16 +286,21 @@ pipeline {
 
                         "APP-1/kube/db-secret.yaml",
                         "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-storageclass.yaml",
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
-                        "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml",
-                        "APP-1/kube/db-storageclass.yaml"
+                        "APP-1/kube/db-service.yaml"
                     )
                 }
             }
         }
 
+
+        /*
+        ======================================================
+        PRODUCTION APPROVAL
+        ======================================================
+        */
 
         stage('Production Approval') {
 
@@ -229,6 +313,12 @@ pipeline {
             }
         }
 
+
+        /*
+        ======================================================
+        PROMOTE STAGE → PROD
+        ======================================================
+        */
 
         stage('Promote DB STAGE → PROD') {
 
@@ -247,6 +337,12 @@ pipeline {
         }
 
 
+        /*
+        ======================================================
+        DEPLOY DB - PROD
+        ======================================================
+        */
+
         stage('Deploy DB - PROD') {
 
             steps {
@@ -259,17 +355,22 @@ pipeline {
 
                         "APP-1/kube/db-secret.yaml",
                         "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-storageclass.yaml",
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
-                        "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml",
-                        "APP-1/kube/db-storageclass.yaml"
+                        "APP-1/kube/db-service.yaml"
                     )
                 }
             }
         }
     }
 
+
+    /*
+    ======================================================
+    POST
+    ======================================================
+    */
 
     post {
 
@@ -289,7 +390,6 @@ DATABASE DEPLOYMENT FUNCTION
 ==========================================================
 */
 
-
 def deployDB(
     String namespace,
     String registry,
@@ -300,7 +400,10 @@ def deployDB(
     String deploymentYaml,
     String serviceYaml
 ) {
-    def image = "${registry}:${env.COMMIT_ID}"
+
+    def image =
+        "${registry}:${env.COMMIT_ID}"
+
 
     echo "======================================"
     echo "DEPLOYING DATABASE"
@@ -308,89 +411,168 @@ def deployDB(
     echo "Namespace      : ${namespace}"
     echo "Image          : ${image}"
     echo "StorageClass   : ${storageclassYaml}"
+    echo "PVC            : ${pvcYaml}"
+    echo "Deployment     : ${deploymentYaml}"
+    echo "Service        : ${serviceYaml}"
     echo "======================================"
 
-    // Create/update StorageClass
+
+    /*
+    ------------------------------------------------------
+    StorageClass
+    ------------------------------------------------------
+    StorageClass is cluster-scoped.
+    Therefore DO NOT use -n.
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${storageclassYaml}
     """
 
-    // Create Secret
+
+    /*
+    ------------------------------------------------------
+    Secret
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${secretYaml} \
             -n ${namespace}
     """
 
-    // Create ConfigMap
+
+    /*
+    ------------------------------------------------------
+    ConfigMap
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${configMapYaml} \
             -n ${namespace}
     """
 
-    // Create PVC
+
+    /*
+    ------------------------------------------------------
+    PVC
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${pvcYaml} \
             -n ${namespace}
     """
 
-    // Create Deployment
+
+    /*
+    ------------------------------------------------------
+    Deployment
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${deploymentYaml} \
             -n ${namespace}
     """
 
-    // Create Service
+
+    /*
+    ------------------------------------------------------
+    Service
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl apply \
             -f ${serviceYaml} \
             -n ${namespace}
     """
 
-    // Update image
+
+    /*
+    ------------------------------------------------------
+    Update DB image
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl -n ${namespace} set image \
             deployment/mysql \
             mysql=${image}
     """
 
-    // Wait for MySQL
+
+    /*
+    ------------------------------------------------------
+    Wait for DB rollout
+    ------------------------------------------------------
+    */
+
     sh """
         kubectl -n ${namespace} rollout status \
             deployment/mysql \
             --timeout=300s
     """
 
-    // Verify resources
+
+    /*
+    ------------------------------------------------------
+    Verification
+    ------------------------------------------------------
+    */
+
     sh """
+
         echo "===== STORAGE CLASS ====="
+
         kubectl get storageclass
 
+
         echo "===== SECRET ====="
-        kubectl get secret -n ${namespace}
+
+        kubectl get secret \
+            -n ${namespace}
+
 
         echo "===== CONFIGMAP ====="
-        kubectl get configmap -n ${namespace}
+
+        kubectl get configmap \
+            -n ${namespace}
+
 
         echo "===== PVC ====="
-        kubectl get pvc -n ${namespace}
+
+        kubectl get pvc \
+            -n ${namespace}
+
 
         echo "===== DEPLOYMENT ====="
-        kubectl get deployment mysql -n ${namespace}
+
+        kubectl get deployment mysql \
+            -n ${namespace}
+
 
         echo "===== SERVICE ====="
-        kubectl get service app1-db -n ${namespace}
+
+        kubectl get service app1-db \
+            -n ${namespace}
+
 
         echo "===== PODS ====="
-        kubectl get pods -n ${namespace} -o wide
+
+        kubectl get pods \
+            -n ${namespace} \
+            -o wide
     """
 }
-
-
 
 
 /*
@@ -409,14 +591,16 @@ def promoteImage(
     echo "======================================"
     echo "IMAGE PROMOTION"
     echo "======================================"
+
     echo "Source : ${sourceImage}"
     echo "Target : ${targetImage}"
+
     echo "======================================"
 
 
     /*
     ------------------------------------------------------
-    Pull image from source environment
+    Pull image from source registry
     ------------------------------------------------------
     */
 
@@ -444,7 +628,7 @@ def promoteImage(
 
     /*
     ------------------------------------------------------
-    Push image to target environment
+    Push image to target registry
     ------------------------------------------------------
     */
 
@@ -467,8 +651,10 @@ def promoteImage(
     */
 
     sh """
+
         docker rmi ${sourceImage} || true
+
         docker rmi ${targetImage} || true
     """
 }
-
+```
