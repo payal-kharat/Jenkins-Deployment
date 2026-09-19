@@ -132,8 +132,8 @@ pipeline {
                     deployBackend(
                         DEV_NAMESPACE,
                         DEV_REGISTRY,
-                        "APP-1/kube/backend/dev/backend-deployment.yaml",
-                        "APP-1/kube/backend/dev/backend-service.yaml"
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
                     )
                 }
             }
@@ -166,8 +166,8 @@ pipeline {
                     deployBackend(
                         QA_NAMESPACE,
                         QA_REGISTRY,
-                        "APP-1/kube/backend/qa/backend-deployment.yaml",
-                        "APP-1/kube/backend/qa/backend-service.yaml"
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
                     )
                 }
             }
@@ -200,8 +200,8 @@ pipeline {
                     deployBackend(
                         STAGE_NAMESPACE,
                         STAGE_REGISTRY,
-                        "APP-1/kube/backend/stage/backend-deployment.yaml",
-                        "APP-1/kube/backend/stage/backend-service.yaml"
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
                     )
                 }
             }
@@ -246,8 +246,8 @@ pipeline {
                     deployBackend(
                         PROD_NAMESPACE,
                         PROD_REGISTRY,
-                        "APP-1/kube/backend/prod/backend-deployment.yaml",
-                        "APP-1/kube/backend/prod/backend-service.yaml"
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
                     )
                 }
             }
