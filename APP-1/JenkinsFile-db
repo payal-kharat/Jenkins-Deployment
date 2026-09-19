@@ -1,4 +1,4 @@
-```groovy
+
 pipeline {
 
     agent any
@@ -657,4 +657,4 @@ def promoteImage(
         docker rmi ${targetImage} || true
     """
 }
-```
+
