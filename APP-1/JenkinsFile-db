@@ -1,4 +1,4 @@
-
+```groovy
 pipeline {
 
     agent any
@@ -128,7 +128,7 @@ pipeline {
                     sh '''
                         echo "$DOCKER_PASSWORD" | docker login \
                             -u "$DOCKER_USERNAME" \
-                            --password-stdin
+                            --password-stdin docker.io
                     '''
                 }
             }
@@ -408,12 +408,14 @@ def deployDB(
     echo "======================================"
     echo "DEPLOYING DATABASE"
     echo "======================================"
+
     echo "Namespace      : ${namespace}"
     echo "Image          : ${image}"
     echo "StorageClass   : ${storageclassYaml}"
     echo "PVC            : ${pvcYaml}"
     echo "Deployment     : ${deploymentYaml}"
     echo "Service        : ${serviceYaml}"
+
     echo "======================================"
 
 
@@ -600,22 +602,32 @@ def promoteImage(
 
     /*
     ------------------------------------------------------
-    Pull image from source registry
+    LOGIN TO SOURCE REGISTRY
     ------------------------------------------------------
     */
 
-    docker.withRegistry(
-        "https://registry.hub.docker.com",
-        sourceCredentials
-    ) {
+    withCredentials([
+        usernamePassword(
+            credentialsId: sourceCredentials,
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )
+    ]) {
 
-        docker.image(sourceImage).pull()
+        sh """
+            echo "\$DOCKER_PASSWORD" | docker login \
+                docker.io \
+                -u "\$DOCKER_USERNAME" \
+                --password-stdin
+
+            docker pull ${sourceImage}
+        """
     }
 
 
     /*
     ------------------------------------------------------
-    Retag image
+    RETAG IMAGE
     ------------------------------------------------------
     */
 
@@ -628,25 +640,32 @@ def promoteImage(
 
     /*
     ------------------------------------------------------
-    Push image to target registry
+    LOGIN TO TARGET REGISTRY
     ------------------------------------------------------
     */
 
-    docker.withRegistry(
-        "https://registry.hub.docker.com",
-        targetCredentials
-    ) {
+    withCredentials([
+        usernamePassword(
+            credentialsId: targetCredentials,
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )
+    ]) {
 
-        docker.image(targetImage).push()
+        sh """
+            echo "\$DOCKER_PASSWORD" | docker login \
+                docker.io \
+                -u "\$DOCKER_USERNAME" \
+                --password-stdin
+
+            docker push ${targetImage}
+        """
     }
-
-
-    echo "Promotion completed successfully."
 
 
     /*
     ------------------------------------------------------
-    Cleanup local Docker images
+    CLEANUP LOCAL IMAGES
     ------------------------------------------------------
     */
 
@@ -656,5 +675,10 @@ def promoteImage(
 
         docker rmi ${targetImage} || true
     """
-}
 
+
+    echo "======================================"
+    echo "IMAGE PROMOTION COMPLETED"
+    echo "======================================"
+}
+```
