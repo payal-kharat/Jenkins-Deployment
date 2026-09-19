@@ -1,0 +1,523 @@
+
+pipeline {
+
+    agent any
+
+    environment {
+
+        DEV_REGISTRY =
+            "docker.io/payalkharat/jenkins-db-dev"
+
+        QA_REGISTRY =
+            "docker.io/payalkharat/jenkins-db-qa"
+
+        STAGE_REGISTRY =
+            "docker.io/payalkharat/jenkins-db-uat"
+
+        PROD_REGISTRY =
+            "docker.io/payalkharat/jenkins-db-prod"
+
+        EKS_CLUSTER = "cluster-1"
+        AWS_REGION  = "us-east-1"
+
+        DEV_NAMESPACE   = "dev"
+        QA_NAMESPACE    = "qa"
+        STAGE_NAMESPACE = "uat"
+        PROD_NAMESPACE  = "prod"
+
+        DEV_DOCKER_CREDS   = "dh_cred_dev"
+        QA_DOCKER_CREDS    = "dh_cred_qa"
+        STAGE_DOCKER_CREDS = "dh_cred_stage"
+        PROD_DOCKER_CREDS  = "dh_cred_prod"
+    }
+
+
+    stages {
+
+        stage('Checkout') {
+
+            steps {
+
+                checkout scm
+
+                script {
+
+                    env.COMMIT_ID = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "COMMIT ID: ${env.COMMIT_ID}"
+                }
+            }
+        }
+
+
+        stage('Connect to EKS') {
+
+            steps {
+
+                sh """
+                    aws eks update-kubeconfig \
+                        --name ${EKS_CLUSTER} \
+                        --region ${AWS_REGION}
+
+                    kubectl get nodes
+                """
+            }
+        }
+
+
+        stage('Docker Login') {
+
+            steps {
+
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'Docker-hub-id',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
+
+
+        stage('Build DB Image') {
+
+            steps {
+
+                script {
+
+                    def image =
+                        "${DEV_REGISTRY}:${COMMIT_ID}"
+
+                    sh """
+                        docker build \
+                            -f APP-1/nginx-flask-mysql/db/Dockerfile \
+                            -t ${image} \
+                            APP-1/nginx-flask-mysql/db/
+
+                        docker push ${image}
+                    """
+
+                    echo "DB image pushed:"
+                    echo "${image}"
+                }
+            }
+        }
+
+
+        stage('Deploy DB - DEV') {
+
+            steps {
+
+                script {
+
+                    deployDB(
+                        DEV_NAMESPACE,
+                        DEV_REGISTRY,
+
+                        "APP-1/kube/db-secret.yaml",
+                        "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-pvc.yaml",
+                        "APP-1/kube/db-deployment.yaml",
+                        "APP-1/kube/db-service.yaml",
+                        "APP-1/kube/app-1-ingress.yaml"
+                    )
+                }
+            }
+        }
+
+
+        stage('Promote DB DEV → QA') {
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${DEV_REGISTRY}:${COMMIT_ID}",
+                        "${QA_REGISTRY}:${COMMIT_ID}",
+                        DEV_DOCKER_CREDS,
+                        QA_DOCKER_CREDS
+                    )
+                }
+            }
+        }
+
+
+        stage('Deploy DB - QA') {
+
+            steps {
+
+                script {
+
+                    deployDB(
+                        QA_NAMESPACE,
+                        QA_REGISTRY,
+
+                        "APP-1/kube/db-secret.yaml",
+                        "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-pvc.yaml",
+                        "APP-1/kube/db-deployment.yaml",
+                        "APP-1/kube/db-service.yaml",
+                        "APP-1/kube/app-1-ingress.yaml"
+                    )
+                }
+            }
+        }
+
+
+        stage('Promote DB QA → STAGE') {
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${QA_REGISTRY}:${COMMIT_ID}",
+                        "${STAGE_REGISTRY}:${COMMIT_ID}",
+                        QA_DOCKER_CREDS,
+                        STAGE_DOCKER_CREDS
+                    )
+                }
+            }
+        }
+
+
+        stage('Deploy DB - STAGE') {
+
+            steps {
+
+                script {
+
+                    deployDB(
+                        STAGE_NAMESPACE,
+                        STAGE_REGISTRY,
+
+                        "APP-1/kube/db-secret.yaml",
+                        "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-pvc.yaml",
+                        "APP-1/kube/db-deployment.yaml",
+                        "APP-1/kube/db-service.yaml",
+                        "APP-1/kube/app-1-ingress.yaml"
+                    )
+                }
+            }
+        }
+
+
+        stage('Production Approval') {
+
+            steps {
+
+                input(
+                    message: "Deploy DB ${COMMIT_ID} to PROD?",
+                    ok: "Deploy DB to PROD"
+                )
+            }
+        }
+
+
+        stage('Promote DB STAGE → PROD') {
+
+            steps {
+
+                script {
+
+                    promoteImage(
+                        "${STAGE_REGISTRY}:${COMMIT_ID}",
+                        "${PROD_REGISTRY}:${COMMIT_ID}",
+                        STAGE_DOCKER_CREDS,
+                        PROD_DOCKER_CREDS
+                    )
+                }
+            }
+        }
+
+
+        stage('Deploy DB - PROD') {
+
+            steps {
+
+                script {
+
+                    deployDB(
+                        PROD_NAMESPACE,
+                        PROD_REGISTRY,
+
+                        "APP-1/kube/db-secret.yaml",
+                        "APP-1/kube/db-configmap.yaml",
+                        "APP-1/kube/db-pvc.yaml",
+                        "APP-1/kube/db-deployment.yaml",
+                        "APP-1/kube/db-service.yaml",
+                        "APP-1/kube/app-1-ingress.yaml"
+                    )
+                }
+            }
+        }
+    }
+
+
+    post {
+
+        always {
+
+            echo "Cleaning Jenkins workspace..."
+
+            cleanWs()
+        }
+    }
+}
+
+
+/*
+==========================================================
+DATABASE DEPLOYMENT FUNCTION
+==========================================================
+*/
+
+def deployDB(
+    String namespace,
+    String registry,
+    String secretYaml,
+    String configMapYaml,
+    String pvcYaml,
+    String deploymentYaml,
+    String serviceYaml,
+    String ingressYaml
+) {
+
+    def image =
+        "${registry}:${env.COMMIT_ID}"
+
+    echo "======================================"
+    echo "DEPLOYING DATABASE"
+    echo "======================================"
+    echo "Namespace : ${namespace}"
+    echo "Image     : ${image}"
+    echo "======================================"
+
+
+    /*
+    ------------------------------------------------------
+    1. Apply Secret
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${secretYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    2. Apply ConfigMap
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${configMapYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    3. Apply PVC
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${pvcYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    4. Apply Deployment
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${deploymentYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    5. Apply Service
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${serviceYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    6. Apply Ingress
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${ingressYaml} \
+            -n ${namespace}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    7. Update DB Image
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl -n ${namespace} set image \
+            deployment/mysql \
+            mysql=${image}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    8. Wait for Rollout
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl -n ${namespace} rollout status \
+            deployment/mysql \
+            --timeout=300s
+    """
+
+
+    /*
+    ------------------------------------------------------
+    9. Verify Resources
+    ------------------------------------------------------
+    */
+
+    sh """
+        echo "===== SECRET ====="
+        kubectl get secret -n ${namespace}
+
+        echo "===== CONFIGMAP ====="
+        kubectl get configmap -n ${namespace}
+
+        echo "===== PVC ====="
+        kubectl get pvc -n ${namespace}
+
+        echo "===== DEPLOYMENT ====="
+        kubectl get deployment mysql -n ${namespace}
+
+        echo "===== SERVICE ====="
+        kubectl get service mysql-service -n ${namespace}
+
+        echo "===== INGRESS ====="
+        kubectl get ingress -n ${namespace}
+
+        echo "===== PODS ====="
+        kubectl get pods -n ${namespace} -o wide
+    """
+}
+
+
+/*
+==========================================================
+IMAGE PROMOTION FUNCTION
+==========================================================
+*/
+
+def promoteImage(
+    String sourceImage,
+    String targetImage,
+    String sourceCredentials,
+    String targetCredentials
+) {
+
+    echo "======================================"
+    echo "IMAGE PROMOTION"
+    echo "======================================"
+    echo "Source : ${sourceImage}"
+    echo "Target : ${targetImage}"
+    echo "======================================"
+
+
+    /*
+    ------------------------------------------------------
+    Pull image from source environment
+    ------------------------------------------------------
+    */
+
+    docker.withRegistry(
+        "https://registry.hub.docker.com",
+        sourceCredentials
+    ) {
+
+        docker.image(sourceImage).pull()
+    }
+
+
+    /*
+    ------------------------------------------------------
+    Retag image
+    ------------------------------------------------------
+    */
+
+    sh """
+        docker tag \
+            ${sourceImage} \
+            ${targetImage}
+    """
+
+
+    /*
+    ------------------------------------------------------
+    Push image to target environment
+    ------------------------------------------------------
+    */
+
+    docker.withRegistry(
+        "https://registry.hub.docker.com",
+        targetCredentials
+    ) {
+
+        docker.image(targetImage).push()
+    }
+
+
+    echo "Promotion completed successfully."
+
+
+    /*
+    ------------------------------------------------------
+    Cleanup local Docker images
+    ------------------------------------------------------
+    */
+
+    sh """
+        docker rmi ${sourceImage} || true
+        docker rmi ${targetImage} || true
+    """
+}
+
