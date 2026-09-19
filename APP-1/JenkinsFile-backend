@@ -331,12 +331,11 @@ def deployBackend(
         kubectl get deployment backend \
             -n ${namespace}
 
-        kubectl get service app1-service \
+        kubectl get service app1-backend \
             -n ${namespace}
 
         kubectl get pods \
-            -n ${namespace} \
-            -l app=app1-backend
+            -n ${namespace}
     """
 
 
@@ -346,7 +345,6 @@ def deployBackend(
     echo "Image     : ${image}"
     echo "======================================"
 }
-
 
 /* =========================================================
    IMAGE PROMOTION FUNCTION
