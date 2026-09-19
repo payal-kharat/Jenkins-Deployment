@@ -130,7 +130,8 @@ pipeline {
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
                         "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml"
+                        "APP-1/kube/app-1-ingress.yaml",
+                        "APP-1/kube/db-storageclass.yaml"
                     )
                 }
             }
@@ -169,7 +170,8 @@ pipeline {
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
                         "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml"
+                        "APP-1/kube/app-1-ingress.yaml",
+                        "APP-1/kube/db-storageclass.yaml"
                     )
                 }
             }
@@ -208,7 +210,8 @@ pipeline {
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
                         "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml"
+                        "APP-1/kube/app-1-ingress.yaml",
+                        "APP-1/kube/db-storageclass.yaml"
                     )
                 }
             }
@@ -259,7 +262,8 @@ pipeline {
                         "APP-1/kube/db-pvc.yaml",
                         "APP-1/kube/db-deployment.yaml",
                         "APP-1/kube/db-service.yaml",
-                        "APP-1/kube/app-1-ingress.yaml"
+                        "APP-1/kube/app-1-ingress.yaml",
+                        "APP-1/kube/db-storageclass.yaml"
                     )
                 }
             }
@@ -294,6 +298,7 @@ def deployDB(
     String deploymentYaml,
     String serviceYaml,
     String ingressYaml
+    String storageclassYaml
 ) {
 
     def image =
@@ -329,6 +334,18 @@ def deployDB(
     sh """
         kubectl apply \
             -f ${configMapYaml} \
+            -n ${namespace}
+    """
+
+    /*
+    ------------------------------------------------------
+    2. Apply Storageclass
+    ------------------------------------------------------
+    */
+
+    sh """
+        kubectl apply \
+            -f ${storageclassYaml} \
             -n ${namespace}
     """
 
