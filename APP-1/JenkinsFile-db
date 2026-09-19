@@ -289,152 +289,87 @@ DATABASE DEPLOYMENT FUNCTION
 ==========================================================
 */
 
+
 def deployDB(
     String namespace,
     String registry,
     String secretYaml,
     String configMapYaml,
+    String storageclassYaml,
     String pvcYaml,
     String deploymentYaml,
-    String serviceYaml,
-    String ingressYaml
-    String storageclassYaml
+    String serviceYaml
 ) {
-
-    def image =
-        "${registry}:${env.COMMIT_ID}"
+    def image = "${registry}:${env.COMMIT_ID}"
 
     echo "======================================"
     echo "DEPLOYING DATABASE"
     echo "======================================"
-    echo "Namespace : ${namespace}"
-    echo "Image     : ${image}"
+    echo "Namespace      : ${namespace}"
+    echo "Image          : ${image}"
+    echo "StorageClass   : ${storageclassYaml}"
     echo "======================================"
 
+    // Create/update StorageClass
+    sh """
+        kubectl apply \
+            -f ${storageclassYaml}
+    """
 
-    /*
-    ------------------------------------------------------
-    1. Apply Secret
-    ------------------------------------------------------
-    */
-
+    // Create Secret
     sh """
         kubectl apply \
             -f ${secretYaml} \
             -n ${namespace}
     """
 
-
-    /*
-    ------------------------------------------------------
-    2. Apply ConfigMap
-    ------------------------------------------------------
-    */
-
+    // Create ConfigMap
     sh """
         kubectl apply \
             -f ${configMapYaml} \
             -n ${namespace}
     """
 
-    /*
-    ------------------------------------------------------
-    2. Apply Storageclass
-    ------------------------------------------------------
-    */
-
-    sh """
-        kubectl apply \
-            -f ${storageclassYaml} \
-            -n ${namespace}
-    """
-
-
-    /*
-    ------------------------------------------------------
-    3. Apply PVC
-    ------------------------------------------------------
-    */
-
+    // Create PVC
     sh """
         kubectl apply \
             -f ${pvcYaml} \
             -n ${namespace}
     """
 
-
-    /*
-    ------------------------------------------------------
-    4. Apply Deployment
-    ------------------------------------------------------
-    */
-
+    // Create Deployment
     sh """
         kubectl apply \
             -f ${deploymentYaml} \
             -n ${namespace}
     """
 
-
-    /*
-    ------------------------------------------------------
-    5. Apply Service
-    ------------------------------------------------------
-    */
-
+    // Create Service
     sh """
         kubectl apply \
             -f ${serviceYaml} \
             -n ${namespace}
     """
 
-
-    /*
-    ------------------------------------------------------
-    6. Apply Ingress
-    ------------------------------------------------------
-    */
-
-    sh """
-        kubectl apply \
-            -f ${ingressYaml} \
-            -n ${namespace}
-    """
-
-
-    /*
-    ------------------------------------------------------
-    7. Update DB Image
-    ------------------------------------------------------
-    */
-
+    // Update image
     sh """
         kubectl -n ${namespace} set image \
             deployment/mysql \
             mysql=${image}
     """
 
-
-    /*
-    ------------------------------------------------------
-    8. Wait for Rollout
-    ------------------------------------------------------
-    */
-
+    // Wait for MySQL
     sh """
         kubectl -n ${namespace} rollout status \
             deployment/mysql \
             --timeout=300s
     """
 
-
-    /*
-    ------------------------------------------------------
-    9. Verify Resources
-    ------------------------------------------------------
-    */
-
+    // Verify resources
     sh """
+        echo "===== STORAGE CLASS ====="
+        kubectl get storageclass
+
         echo "===== SECRET ====="
         kubectl get secret -n ${namespace}
 
@@ -448,15 +383,14 @@ def deployDB(
         kubectl get deployment mysql -n ${namespace}
 
         echo "===== SERVICE ====="
-        kubectl get service mysql-service -n ${namespace}
-
-        echo "===== INGRESS ====="
-        kubectl get ingress -n ${namespace}
+        kubectl get service app1-db -n ${namespace}
 
         echo "===== PODS ====="
         kubectl get pods -n ${namespace} -o wide
     """
 }
+
+
 
 
 /*
