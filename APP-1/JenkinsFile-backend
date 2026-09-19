@@ -331,7 +331,7 @@ def deployBackend(
         kubectl get deployment backend \
             -n ${namespace}
 
-        kubectl get service backend-service \
+        kubectl get service app1-service \
             -n ${namespace}
 
         kubectl get pods \
