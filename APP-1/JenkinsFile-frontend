@@ -30,7 +30,7 @@ pipeline {
 
         DEV_DOCKER_CREDS   = "dh_cred_dev"
         QA_DOCKER_CREDS    = "dh_cred_qa"
-        STAGE_DOCKER_CREDS = "dh_cred_uat"
+        STAGE_DOCKER_CREDS = "dh_cred_stage"
         PROD_DOCKER_CREDS  = "dh_cred_prod"
     }
 
