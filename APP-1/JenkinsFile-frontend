@@ -132,8 +132,8 @@ pipeline {
                     deployFrontend(
                         DEV_NAMESPACE,
                         DEV_REGISTRY,
-                        "APP-1/kube/frontend/dev/frontend-deployment.yaml",
-                        "APP-1/kube/frontend/dev/frontend-service.yaml"
+                        "APP-1/kube/frontend-deployment.yaml",
+                        "APP-1/kube/frontend-service.yaml"
                     )
                 }
             }
@@ -166,8 +166,8 @@ pipeline {
                     deployFrontend(
                         QA_NAMESPACE,
                         QA_REGISTRY,
-                        "APP-1/kube/frontend/qa/frontend-deployment.yaml",
-                        "APP-1/kube/frontend/qa/frontend-service.yaml"
+                        "APP-1/kube/frontend-deployment.yaml",
+                        "APP-1/kube/frontend-service.yaml"
                     )
                 }
             }
@@ -200,8 +200,8 @@ pipeline {
                     deployFrontend(
                         STAGE_NAMESPACE,
                         STAGE_REGISTRY,
-                        "APP-1/kube/frontend/stage/frontend-deployment.yaml",
-                        "APP-1/kube/frontend/stage/frontend-service.yaml"
+                        "APP-1/kube/frontend-deployment.yaml",
+                        "APP-1/kube/frontend-service.yaml"
                     )
                 }
             }
@@ -246,8 +246,8 @@ pipeline {
                     deployFrontend(
                         PROD_NAMESPACE,
                         PROD_REGISTRY,
-                        "APP-1/kube/frontend/prod/frontend-deployment.yaml",
-                        "APP-1/kube/frontend/prod/frontend-service.yaml"
+                        "APP-1/kube/frontend-deployment.yaml",
+                        "APP-1/kube/frontend-service.yaml"
                     )
                 }
             }
