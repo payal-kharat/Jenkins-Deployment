@@ -319,7 +319,7 @@ post {
         cleanWs()
     }
 }
-```
+
 
 }
 
@@ -335,7 +335,7 @@ String serviceYaml,
 String ingressYaml
 ) {
 
-```
+
 def image =
     "${registry}:${env.COMMIT_ID}"
 
@@ -458,7 +458,7 @@ sh """
 echo "======================================"
 echo "FRONTEND DEPLOYMENT COMPLETED"
 echo "======================================"
-```
+
 
 }
 
@@ -473,7 +473,7 @@ String sourceCredentials,
 String targetCredentials
 ) {
 
-```
+
 echo "======================================"
 echo "IMAGE PROMOTION"
 echo "======================================"
