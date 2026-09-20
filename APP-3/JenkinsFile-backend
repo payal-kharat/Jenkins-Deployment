@@ -107,9 +107,9 @@ pipeline {
 
                     sh """
                         docker build \
-                            -f APP-3/mysql-java-mysql/backend/Dockerfile \
+                            -f APP-3/react-java-mysql/backend/Dockerfile \
                             -t ${image} \
-                            APP-3/mysql-java-mysql/backend/
+                            APP-3/react-java-mysql/backend/
 
                         docker push ${image}
                     """
