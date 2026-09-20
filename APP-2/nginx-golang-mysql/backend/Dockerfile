@@ -7,8 +7,7 @@ ENV GOPATH /go
 ENV GOCACHE /go-build
 
 COPY go.mod go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod/cache \
-    go mod download
+RUN  go mod download
 
 COPY . .
 
