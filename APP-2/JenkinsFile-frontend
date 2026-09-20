@@ -1,6 +1,5 @@
 pipeline {
 
-```
 agent any
 
 environment {
@@ -555,6 +554,6 @@ sh """
 echo "======================================"
 echo "IMAGE PROMOTION COMPLETED"
 echo "======================================"
-```
+
 
 }
