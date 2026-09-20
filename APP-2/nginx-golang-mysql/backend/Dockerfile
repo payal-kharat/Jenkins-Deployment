@@ -11,9 +11,7 @@ RUN  go mod download
 
 COPY . .
 
-RUN --mount=type=cache,target=/go/pkg/mod/cache \
-    --mount=type=cache,target=/go-build \
-    go build -o bin/backend main.go
+RUN go build -o bin/backend main.go
 
 CMD ["/code/bin/backend"]
 
