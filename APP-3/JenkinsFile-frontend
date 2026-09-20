@@ -122,9 +122,9 @@ stages {
 
                 sh """
                     docker build \
-                        -f APP-3/mysql-java-mysql/frontend/Dockerfile \
+                        -f APP-3/react-java-mysql/frontend/Dockerfile \
                         -t ${image} \
-                        APP-3/mysql-java-mysql/frontend/
+                        APP-3/react-java-mysql/frontend/
 
                     docker push ${image}
                 """
