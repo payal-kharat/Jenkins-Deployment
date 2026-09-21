@@ -195,8 +195,8 @@ pipeline {
                     deployBackend(
                         STAGE_NAMESPACE,
                         STAGE_REGISTRY,
-                        "APP-2/kube/backend-deployment.yaml",
-                        "APP-2/kube/backend-service.yaml"
+                        "APP-4/kube/backend-deployment.yaml",
+                        "APP-4/kube/backend-service.yaml"
                     )
                 }
             }
