@@ -311,7 +311,7 @@ def deployBackend(
     """
 
     echo "Namespace : ${namespace}"
-    echo "Image     : ${image}
+    echo "Image     : ${image}"
 }
 
 
