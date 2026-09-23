@@ -1,696 +1,441 @@
-
 pipeline {
 
-    agent any
+    agent any
 
-    parameters {
+    environment {
 
-        choice(
-            name: 'ENVIRONMENT',
-            choices: ['dev', 'qa', 'stage', 'prod'],
-            description: 'Select environment'
-        )
-    }
+        DEV_REGISTRY =
+            "docker.io/payalkharat/jenkins-backend-dev"
 
-    environment {
+        QA_REGISTRY =
+            "docker.io/payalkharat/jenkins-backend-qa"
 
-        /* =====================================================
-           DOCKER HUB REGISTRIES
-           ===================================================== */
+        STAGE_REGISTRY =
+            "docker.io/payalkharat/jenkins-backend-stage"
 
-        DEV_REGISTRY =
-            "docker.io/payalkharat/jenkins-db-dev"
+        PROD_REGISTRY =
+            "docker.io/payalkharat/jenkins-backend-prod"
 
-        QA_REGISTRY =
-            "docker.io/payalkharat/jenkins-db-qa"
 
-        STAGE_REGISTRY =
-            "docker.io/payalkharat/jenkins-db-stage"
+        EKS_CLUSTER = "cluster-1"
+        AWS_REGION  = "us-east-1"
 
-        PROD_REGISTRY =
-            "docker.io/payalkharat/jenkins-db-prod"
 
+        DEV_NAMESPACE   = "dev"
+        QA_NAMESPACE    = "qa"
+        STAGE_NAMESPACE = "uat"
+        PROD_NAMESPACE  = "prod"
 
-        /* =====================================================
-           AWS
-           ===================================================== */
 
-        AWS_REGION = "us-east-1"
+        DEV_DOCKER_CREDS   = "dh_cred_dev"
+        QA_DOCKER_CREDS    = "dh_cred_qa"
+        STAGE_DOCKER_CREDS = "dh_cred_stage"
+        PROD_DOCKER_CREDS  = "dh_cred_prod"
+    }
 
 
-        /* =====================================================
-           ECS
-           ===================================================== */
+    stages {
 
-        DEV_CLUSTER =
-            "employee-managemet-dev-cluster"
+        stage('Checkout') {
 
-        QA_CLUSTER =
-            "employee-managemet-qa-cluster"
+            steps {
 
-        STAGE_CLUSTER =
-            "employee-managemet-uat-cluster"
+                checkout scm
 
-        PROD_CLUSTER =
-            "employee-managemet-prod-cluster"
+                script {
 
+                    env.COMMIT_ID = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
 
-        DEV_SERVICE =
-            "employee-managemet-dev-db-service"
+                    echo "======================================"
+                    echo "COMMIT ID: ${env.COMMIT_ID}"
+                    echo "======================================"
+                }
+            }
+        }
 
-        QA_SERVICE =
-            "employee-managemet-qa-db-service"
 
-        STAGE_SERVICE =
-            "employee-managemet-uat-db-service"
+        stage('Connect to EKS') {
 
-        PROD_SERVICE =
-            "employee-managemet-prod-db-service"
+            steps {
 
+                sh """
+                    aws eks update-kubeconfig \
+                        --name ${EKS_CLUSTER} \
+                        --region ${AWS_REGION}
 
-        DEV_TASK_FAMILY =
-            "employee-managemet-dev-db"
+                    kubectl get nodes
+                """
+            }
+        }
 
-        QA_TASK_FAMILY =
-            "employee-managemet-qa-db"
 
-        STAGE_TASK_FAMILY =
-            "employee-managemet-uat-db"
+        stage('Docker Login') {
 
-        PROD_TASK_FAMILY =
-            "employee-managemet-prod-db"
+            steps {
 
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'Docker-hub-id',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
 
-        /* =====================================================
-           DB FILES
-           ===================================================== */
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login \
+                            docker.io \
+                            -u "$DOCKER_USERNAME" \
+                            --password-stdin
+                    '''
+                }
+            }
+        }
 
-        DOCKERFILE =
-            "db/Dockerfile"
 
-        BUILD_CONTEXT =
-            "db"
+        stage('Build Backend Image') {
 
-        TASK_DEFINITION_TEMPLATE =
-            "db/task-definition.json"
+            steps {
 
+                script {
 
-        /* =====================================================
-           DOCKER HUB CREDENTIALS
-           ===================================================== */
+                    def image =
+                        "${DEV_REGISTRY}:${COMMIT_ID}"
 
-        DOCKER_CREDS =
-            "Docker-hub-id"
-    }
+                    sh """
+                        docker build \
+                            -f APP-1/nginx-flask-mysql/backend/Dockerfile \
+                            -t ${image} \
+                            APP-1/nginx-flask-mysql/backend/
 
+                        docker push ${image}
+                    """
 
-    stages {
+                    echo "======================================"
+                    echo "BACKEND IMAGE BUILT AND PUSHED"
+                    echo "IMAGE: ${image}"
+                    echo "======================================"
+                }
+            }
+        }
 
 
-        /* =====================================================
-           CHECKOUT
-           ===================================================== */
+        stage('Deploy Backend - DEV') {
 
-        stage('Checkout') {
+            steps {
 
-            steps {
+                script {
 
-                checkout scm
+                    deployBackend(
+                        DEV_NAMESPACE,
+                        DEV_REGISTRY,
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
+                    )
+                }
+            }
+        }
 
-                script {
 
-                    env.COMMIT_ID = sh(
-                        script: "git rev-parse --short HEAD",
-                        returnStdout: true
-                    ).trim()
+        stage('Promote Backend DEV → QA') {
 
-                    echo "======================================"
-                    echo "COMMIT ID: ${env.COMMIT_ID}"
-                    echo "======================================"
-                }
-            }
-        }
+            steps {
 
+                script {
 
-        /* =====================================================
-           DOCKER LOGIN
-           ===================================================== */
+                    promoteImage(
+                        "${DEV_REGISTRY}:${COMMIT_ID}",
+                        "${QA_REGISTRY}:${COMMIT_ID}",
+                        DEV_DOCKER_CREDS,
+                        QA_DOCKER_CREDS
+                    )
+                }
+            }
+        }
 
-        stage('Docker Login') {
 
-            steps {
+        stage('Deploy Backend - QA') {
 
-                withCredentials([
-                    usernamePassword(
-                        credentialsId: "${DOCKER_CREDS}",
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
-                    )
-                ]) {
+            steps {
 
-                    sh '''
-                        echo "$DOCKER_PASSWORD" | docker login \
-                            docker.io \
-                            -u "$DOCKER_USERNAME" \
-                            --password-stdin
-                    '''
-                }
-            }
-        }
+                script {
 
+                    deployBackend(
+                        QA_NAMESPACE,
+                        QA_REGISTRY,
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
+                    )
+                }
+            }
+        }
 
-        /* =====================================================
-           BUILD DB IMAGE
-           ===================================================== */
 
-        stage('Build DB Image') {
+        stage('Promote Backend QA → STAGE') {
 
-            when {
+            steps {
 
-                expression {
-                    params.ENVIRONMENT == 'dev'
-                }
-            }
+                script {
 
-            steps {
+                    promoteImage(
+                        "${QA_REGISTRY}:${COMMIT_ID}",
+                        "${STAGE_REGISTRY}:${COMMIT_ID}",
+                        QA_DOCKER_CREDS,
+                        STAGE_DOCKER_CREDS
+                    )
+                }
+            }
+        }
 
-                script {
 
-                    def image =
-                        "${DEV_REGISTRY}:${COMMIT_ID}"
+        stage('Deploy Backend - STAGE') {
 
-                    echo "======================================"
-                    echo "BUILDING DB IMAGE"
-                    echo "======================================"
-                    echo "Image: ${image}"
-                    echo "======================================"
+            steps {
 
+                script {
 
-                    sh """
-                        docker build \
-                            -f ${DOCKERFILE} \
-                            -t ${image} \
-                            ${BUILD_CONTEXT}
+                    deployBackend(
+                        STAGE_NAMESPACE,
+                        STAGE_REGISTRY,
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
+                    )
+                }
+            }
+        }
 
-                        docker push ${image}
-                    """
 
+        stage('Production Approval') {
 
-                    echo "======================================"
-                    echo "DB IMAGE BUILT AND PUSHED"
-                    echo "Image: ${image}"
-                    echo "======================================"
-                }
-            }
-        }
+            steps {
 
+                input(
+                    message: "Deploy Backend ${COMMIT_ID} to PROD?",
+                    ok: "Deploy Backend to PROD"
+                )
+            }
+        }
 
-        /* =====================================================
-           DEPLOY DB - DEV
-           ===================================================== */
 
-        stage('Deploy DB - DEV') {
+        stage('Promote Backend STAGE → PROD') {
 
-            when {
+            steps {
 
-                expression {
-                    params.ENVIRONMENT == 'dev'
-                }
-            }
+                script {
 
-            steps {
+                    promoteImage(
+                        "${STAGE_REGISTRY}:${COMMIT_ID}",
+                        "${PROD_REGISTRY}:${COMMIT_ID}",
+                        STAGE_DOCKER_CREDS,
+                        PROD_DOCKER_CREDS
+                    )
+                }
+            }
+        }
 
-                script {
 
-                    deployDB(
-                        DEV_CLUSTER,
-                        DEV_SERVICE,
-                        DEV_TASK_FAMILY,
-                        DEV_REGISTRY
-                    )
-                }
-            }
-        }
+        stage('Deploy Backend - PROD') {
 
+            steps {
 
-        /* =====================================================
-           PROMOTE DEV → QA
-           ===================================================== */
+                script {
 
-        stage('Promote DB DEV → QA') {
+                    deployBackend(
+                        PROD_NAMESPACE,
+                        PROD_REGISTRY,
+                        "APP-1/kube/backend-deployment.yaml",
+                        "APP-1/kube/backend-service.yaml"
+                    )
+                }
+            }
+        }
+    }
 
-            when {
 
-                expression {
-                    params.ENVIRONMENT == 'qa'
-                }
-            }
+    post {
 
-            steps {
+        always {
 
-                script {
+            echo "Cleaning Jenkins workspace..."
 
-                    promoteImage(
-                        "${DEV_REGISTRY}:${COMMIT_ID}",
-                        "${QA_REGISTRY}:${COMMIT_ID}"
-                    )
-                }
-            }
-        }
-
-
-        /* =====================================================
-           DEPLOY DB - QA
-           ===================================================== */
-
-        stage('Deploy DB - QA') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'qa'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    deployDB(
-                        QA_CLUSTER,
-                        QA_SERVICE,
-                        QA_TASK_FAMILY,
-                        QA_REGISTRY
-                    )
-                }
-            }
-        }
-
-
-        /* =====================================================
-           PROMOTE QA → STAGE
-           ===================================================== */
-
-        stage('Promote DB QA → STAGE') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'stage'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    promoteImage(
-                        "${QA_REGISTRY}:${COMMIT_ID}",
-                        "${STAGE_REGISTRY}:${COMMIT_ID}"
-                    )
-                }
-            }
-        }
-
-
-        /* =====================================================
-           DEPLOY DB - STAGE
-           ===================================================== */
-
-        stage('Deploy DB - STAGE') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'stage'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    deployDB(
-                        STAGE_CLUSTER,
-                        STAGE_SERVICE,
-                        STAGE_TASK_FAMILY,
-                        STAGE_REGISTRY
-                    )
-                }
-            }
-        }
-
-
-        /* =====================================================
-           PRODUCTION APPROVAL
-           ===================================================== */
-
-        stage('Production Approval') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'prod'
-                }
-            }
-
-            steps {
-
-                input(
-                    message: "Deploy DB ${COMMIT_ID} to PROD?",
-                    ok: "Deploy DB to PROD"
-                )
-            }
-        }
-
-
-        /* =====================================================
-           PROMOTE STAGE → PROD
-           ===================================================== */
-
-        stage('Promote DB STAGE → PROD') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'prod'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    promoteImage(
-                        "${STAGE_REGISTRY}:${COMMIT_ID}",
-                        "${PROD_REGISTRY}:${COMMIT_ID}"
-                    )
-                }
-            }
-        }
-
-
-        /* =====================================================
-           DEPLOY DB - PROD
-           ===================================================== */
-
-        stage('Deploy DB - PROD') {
-
-            when {
-
-                expression {
-                    params.ENVIRONMENT == 'prod'
-                }
-            }
-
-            steps {
-
-                script {
-
-                    deployDB(
-                        PROD_CLUSTER,
-                        PROD_SERVICE,
-                        PROD_TASK_FAMILY,
-                        PROD_REGISTRY
-                    )
-                }
-            }
-        }
-    }
-
-
-    /* =========================================================
-       POST
-       ========================================================= */
-
-    post {
-
-        always {
-
-            echo "Cleaning Jenkins workspace..."
-
-            cleanWs()
-        }
-    }
+            cleanWs()
+        }
+    }
 }
 
 
-/* =============================================================
-   DB DEPLOYMENT FUNCTION
-   ============================================================= */
+/* =========================================================
+   BACKEND DEPLOYMENT FUNCTION
+   ========================================================= */
 
-def deployDB(
-    String cluster,
-    String service,
-    String taskFamily,
-    String registry
+def deployBackend(
+    String namespace,
+    String registry,
+    String deploymentYaml,
+    String serviceYaml
 ) {
 
-    def image =
-        "${registry}:${env.COMMIT_ID}"
+    def image =
+        "${registry}:${env.COMMIT_ID}"
+
+    echo "======================================"
+    echo "DEPLOYING BACKEND"
+    echo "======================================"
+    echo "Namespace : ${namespace}"
+    echo "Image     : ${image}"
+    echo "======================================"
 
 
-    echo "======================================"
-    echo "DEPLOYING DATABASE"
-    echo "======================================"
-    echo "Cluster    : ${cluster}"
-    echo "Service    : ${service}"
-    echo "Task Family: ${taskFamily}"
-    echo "Image      : ${image}"
-    echo "======================================"
+    echo "Applying Backend Deployment..."
+
+    sh """
+        kubectl apply \
+            -f ${deploymentYaml} \
+            -n ${namespace}
+    """
 
 
-    /*
-     * Create a temporary task definition.
-     */
+    echo "Applying Backend Service..."
 
-    sh """
-        set -e
-
-        IMAGE="${image}" \
-        TASK_FAMILY="${taskFamily}" \
-        TEMPLATE="${env.TASK_DEFINITION_TEMPLATE}" \
-        python3 - <<'PY'
-
-import json
-import os
-
-template = os.environ["TEMPLATE"]
-image = os.environ["IMAGE"]
-task_family = os.environ["TASK_FAMILY"]
-
-output = "new-db-task-definition.json"
-
-with open(template, "r") as f:
-    task_definition = json.load(f)
-
-task_definition["family"] = task_family
-
-for container in task_definition["containerDefinitions"]:
-
-    if container["name"] == "db":
-        container["image"] = image
-        break
-
-else:
-    raise Exception("Container named 'db' was not found.")
-
-with open(output, "w") as f:
-    json.dump(task_definition, f, indent=2)
-
-PY
-
-        echo "Generated task definition:"
-        cat new-db-task-definition.json
-    """
+    sh """
+        kubectl apply \
+            -f ${serviceYaml} \
+            -n ${namespace}
+    """
 
 
-    /*
-     * Register task definition.
-     *
-     * IMPORTANT:
-     * Revision is stored in a LOCAL Groovy variable.
-     *
-     * We do NOT use NEW_REVISION.
-     */
+    echo "Updating Backend Image..."
 
-    def revision = sh(
-        script: """
-            set -e
-
-            aws ecs register-task-definition \
-                --cli-input-json file://new-db-task-definition.json \
-                --region ${env.AWS_REGION} \
-                --query 'taskDefinition.revision' \
-                --output text
-        """,
-        returnStdout: true
-    ).trim()
+    sh """
+        kubectl -n ${namespace} set image \
+            deployment/backend \
+            backend=${image}
+    """
 
 
-    echo "======================================"
-    echo "AWS REGISTERED REVISION: '${revision}'"
-    echo "======================================"
+    echo "Waiting for Backend Rollout..."
+
+    sh """
+        kubectl -n ${namespace} rollout status \
+            deployment/backend \
+            --timeout=180s
+    """
 
 
-    if (!revision ||
-        revision == "null" ||
-        revision == "None") {
+    echo "Backend Deployment Status:"
 
-        error(
-            "Invalid ECS revision returned by AWS: '${revision}'"
-        )
-    }
+    sh """
+        kubectl get deployment backend \
+            -n ${namespace}
 
+        kubectl get service app1-backend \
+            -n ${namespace}
 
-    /*
-     * Update ECS service.
-     */
-
-    echo "Updating ECS service..."
-
-    sh """
-        set -e
-
-        aws ecs update-service \
-            --cluster ${cluster} \
-            --service ${service} \
-            --task-definition ${taskFamily}:${revision} \
-            --force-new-deployment \
-            --region ${env.AWS_REGION}
-    """
+        kubectl get pods \
+            -n ${namespace}
+    """
 
 
-    /*
-     * Wait until ECS service becomes stable.
-     */
-
-    echo "Waiting for ECS service to become stable..."
-
-    sh """
-        aws ecs wait services-stable \
-            --cluster ${cluster} \
-            --services ${service} \
-            --region ${env.AWS_REGION}
-    """
-
-
-    /*
-     * Show ECS service status.
-     */
-
-    echo "ECS Service Status:"
-
-    sh """
-        aws ecs describe-services \
-            --cluster ${cluster} \
-            --services ${service} \
-            --region ${env.AWS_REGION} \
-            --query 'services[0].{Status:status,Desired:desiredCount,Running:runningCount,Pending:pendingCount,TaskDefinition:taskDefinition}' \
-            --output table
-    """
-
-
-    echo "======================================"
-    echo "DATABASE DEPLOYMENT COMPLETED"
-    echo "======================================"
-    echo "Cluster    : ${cluster}"
-    echo "Service    : ${service}"
-    echo "Task Family: ${taskFamily}"
-    echo "Revision   : ${revision}"
-    echo "Image      : ${image}"
-    echo "======================================"
+    echo "======================================"
+    echo "BACKEND DEPLOYMENT COMPLETED"
+    echo "Namespace : ${namespace}"
+    echo "Image     : ${image}"
+    echo "======================================"
 }
 
-
-/* =============================================================
-   IMAGE PROMOTION FUNCTION
-   ============================================================= */
+/* =========================================================
+   IMAGE PROMOTION FUNCTION
+   ========================================================= */
 
 def promoteImage(
-    String sourceImage,
-    String targetImage
+    String sourceImage,
+    String targetImage,
+    String sourceCredentials,
+    String targetCredentials
 ) {
 
-    echo "======================================"
-    echo "IMAGE PROMOTION"
-    echo "======================================"
-    echo "Source : ${sourceImage}"
-    echo "Target : ${targetImage}"
-    echo "======================================"
+    echo "======================================"
+    echo "IMAGE PROMOTION"
+    echo "======================================"
+    echo "Source : ${sourceImage}"
+    echo "Target : ${targetImage}"
+    echo "======================================"
 
 
-    /*
-     * Pull source image.
-     */
+    /*
+     * LOGIN TO SOURCE REGISTRY
+     * Pull the already-built image.
+     */
 
-    withCredentials([
-        usernamePassword(
-            credentialsId: "${env.DOCKER_CREDS}",
-            usernameVariable: 'DOCKER_USERNAME',
-            passwordVariable: 'DOCKER_PASSWORD'
-        )
-    ]) {
+    withCredentials([
+        usernamePassword(
+            credentialsId: sourceCredentials,
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )
+    ]) {
 
-        sh """
-            echo "\$DOCKER_PASSWORD" | docker login \
-                docker.io \
-                -u "\$DOCKER_USERNAME" \
-                --password-stdin
+        sh """
+            echo "\$DOCKER_PASSWORD" | docker login \
+                docker.io \
+                -u "\$DOCKER_USERNAME" \
+                --password-stdin
 
-            docker pull ${sourceImage}
-        """
-    }
-
-
-    /*
-     * Retag the exact same image.
-     */
-
-    sh """
-        docker tag \
-            ${sourceImage} \
-            ${targetImage}
-    """
+            docker pull ${sourceImage}
+        """
+    }
 
 
-    /*
-     * Push target image.
-     */
+    /*
+     * RETAG IMAGE
+     *
+     * No Docker build happens here.
+     */
 
-    withCredentials([
-        usernamePassword(
-            credentialsId: "${env.DOCKER_CREDS}",
-            usernameVariable: 'DOCKER_USERNAME',
-            passwordVariable: 'DOCKER_PASSWORD'
-        )
-    ]) {
-
-        sh """
-            echo "\$DOCKER_PASSWORD" | docker login \
-                docker.io \
-                -u "\$DOCKER_USERNAME" \
-                --password-stdin
-
-            docker push ${targetImage}
-        """
-    }
+    sh """
+        docker tag \
+            ${sourceImage} \
+            ${targetImage}
+    """
 
 
-    /*
-     * Clean local Docker images.
-     */
+    /*
+     * LOGIN TO TARGET REGISTRY
+     * Push the exact same image with the new registry/repository name.
+     */
 
-    sh """
-        docker rmi ${sourceImage} || true
-        docker rmi ${targetImage} || true
-    """
+    withCredentials([
+        usernamePassword(
+            credentialsId: targetCredentials,
+            usernameVariable: 'DOCKER_USERNAME',
+            passwordVariable: 'DOCKER_PASSWORD'
+        )
+    ]) {
+
+        sh """
+            echo "\$DOCKER_PASSWORD" | docker login \
+                docker.io \
+                -u "\$DOCKER_USERNAME" \
+                --password-stdin
+
+            docker push ${targetImage}
+        """
+    }
 
 
-    echo "======================================"
-    echo "IMAGE PROMOTION COMPLETED"
-    echo "======================================"
-    echo "Source : ${sourceImage}"
-    echo "Target : ${targetImage}"
-    echo "======================================"
+    /*
+     * CLEAN LOCAL IMAGES
+     */
+
+    sh """
+        docker rmi ${sourceImage} || true
+        docker rmi ${targetImage} || true
+    """
+
+
+    echo "======================================"
+    echo "IMAGE PROMOTION COMPLETED"
+    echo "======================================"
 }
